@@ -105,18 +105,21 @@ class ModelToDict:
         newlist = []
         for e in obj:
             newlist.append(self.save(e))
+        self.memoize(obj)
         return newlist
     dispatch[list] = save_list
 
     def save_tuple(self, obj):
         newdict = {'_op_': 'tuple'}
         newdict['_items_'] = self.save(list(obj))
+        self.memoize(obj)
         return newdict
     dispatch[tuple] = save_tuple
 
     def save_set(self, obj):
         newdict = {'_op_': 'set'}
         newdict['_items_'] = self.save(list(obj))
+        self.memoize(obj)
         return newdict
     dispatch[set] = save_set
 
@@ -124,6 +127,7 @@ class ModelToDict:
         newdict = {}
         for k, v in obj.items():
             newdict[k] = self.save(v)
+        self.memoize(obj)
         return newdict
     dispatch[dict] = save_dict
 
@@ -138,22 +142,24 @@ class ModelToDict:
         newdict = {'_op_': 'global'}
         newdict['_module_'] = module_name
         newdict['_name_'] = name
-
+        self.memoize(obj)
         return newdict
     dispatch[types.FunctionType] = save_global
     dispatch[types.BuiltinFunctionType] = save_global
 
     def save_numpy_ndarray(self, obj):
         newdict = {'_op_': 'numpy_ndarray'}
-        newdict['_dtype_'] = pickle.dumps(obj.dtype)
+        newdict['_dtype_'] = self.save(obj.dtype)
         newdict['_values_'] = self.save(obj.tolist())
+        self.memoize(obj)
         return newdict
     dispatch[numpy.ndarray] = save_numpy_ndarray
 
     def save_numpy_datatype(self, obj):
         newdict = {'_op_': 'numpy_datatype'}
-        newdict['_datatype_'] = pickle.dumps(obj.dtype)
+        newdict['_datatype_'] = self.save(obj.dtype)
         newdict['_value_'] = self.save(obj.item())
+        self.memoize(obj)
         return newdict
     dispatch[numpy.bool_] = save_numpy_datatype
     dispatch[numpy.int_] = save_numpy_datatype
@@ -175,3 +181,14 @@ class ModelToDict:
     dispatch[numpy.complex64] = save_numpy_datatype
     dispatch[numpy.complex128] = save_numpy_datatype
 
+
+
+
+
+def save(obj):
+    return  ModelToDict().save(obj)
+
+if __name__ == "__main__":
+    with open('./test-data/grad_Boos_classifier.pickle', 'wb') as f:
+        model = pickle.load(f)
+    model_dict = save(model)
