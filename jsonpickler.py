@@ -110,7 +110,7 @@ class ModelToDict:
         newlist = []
         for e in obj:
             newlist.append(self.save(e))
-        self.memoize(obj)
+        #self.memoize(obj)
         return newlist
 
     dispatch[list] = save_list
@@ -118,7 +118,7 @@ class ModelToDict:
     def save_tuple(self, obj):
         newdict = {'_op_': 'tuple'}
         newdict['_aslist_'] = self.save(list(obj))
-        self.memoize(obj)
+        #self.memoize(obj)
         return newdict
 
     dispatch[tuple] = save_tuple
@@ -126,7 +126,7 @@ class ModelToDict:
     def save_set(self, obj):
         newdict = {'_op_': 'set'}
         newdict['_aslist_'] = self.save(list(obj))
-        self.memoize(obj)
+        #self.memoize(obj)
         return newdict
 
     dispatch[set] = save_set
@@ -137,7 +137,7 @@ class ModelToDict:
         newdict['_keys_'] = _keys_
         for k in _keys_:
             newdict[k] = self.save(obj[k])
-        self.memoize(obj)
+        #self.memoize(obj)
         return newdict
 
     dispatch[dict] = save_dict
@@ -231,7 +231,6 @@ class DictToModel:
         if f:
             return f(self, data)
 
-
     dispatch = {}
 
     def load_memo(self, data):
@@ -256,16 +255,11 @@ class DictToModel:
     dispatch[complex] = load_primitive
     dispatch[str] = load_primitive
 
-    """def load_unicode(self, data):
-        return str(data)
-
-    dispatch[unicode] = load_unicode"""
-
     def load_list(self, data):
         newlist = []
         for e in data:
             newlist.append( self.load(e) )
-        self.memoize(newlist)
+        #self.memoize(newlist)
         return newlist
 
     dispatch[list] = load_list
@@ -273,7 +267,7 @@ class DictToModel:
     def load_tuple(self, data):
         _aslist_ = self.load( data['_aslist_'] )
         obj = tuple(_aslist_)
-        self.memoize(obj)
+        #self.memoize(obj)
         return obj
 
     dispatch['tuple'] = load_tuple
@@ -281,7 +275,7 @@ class DictToModel:
     def load_set(self, data):
         _aslist_ = self.load( data['_aslist_'] )
         obj = set(_aslist_)
-        self.memoize(obj)
+        #self.memoize(obj)
         return obj
 
     dispatch['set'] = load_set
@@ -293,10 +287,10 @@ class DictToModel:
             try:
                 v = data[k]
             except KeyError:
-                #json dumps int keys to str
+                #json dumps int key to str
                 v = data[str(k)]
             newdict[k] = self.load(v)
-        self.memoize( newdict )
+        #self.memoize( newdict )
         return newdict
 
     dispatch[dict] = load_dict
@@ -371,11 +365,14 @@ def load(data):
 
 
 if __name__ == "__main__":
+    # load a model from pickle
     with open('./test-data/grad_Boos_classifier.pickle', 'rb') as f:
         model = pickle.load(f)
 
+    #convert a model object to dictionary
     model_dict = dump(model)
 
+    #dump model dict to json file
     with open('./test-data/jbc_model.json', 'w') as f:
         json.dump(model_dict, f)
 
@@ -383,4 +380,5 @@ if __name__ == "__main__":
     with open('./test-data/jbc_model.json', 'r') as f:
         new_dict = yaml.load(f)
 
+    # re-build the model from dict
     re_model = load(new_dict)
