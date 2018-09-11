@@ -13,6 +13,9 @@ from sklearn import (cluster, decomposition, ensemble, feature_extraction, featu
 
 log = logging.getLogger(__name__)
 
+RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_idx_', '_aslist_', '_keys_',
+                '_module_', '_name_', '_dtype_', '_values_', '_value_', '_datatype_']
+
 class ModelToDict:
     """
     Follow the track of python `pickle`
