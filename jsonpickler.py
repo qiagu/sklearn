@@ -1,20 +1,29 @@
-import sys
-import logging
-import json
-import yaml
-import pickle
-import types
-import numpy
-import sklearn
-from sklearn import (cluster, decomposition, ensemble, feature_extraction, feature_selection,
-                    gaussian_process, kernel_approximation, kernel_ridge, linear_model,
-                    metrics, model_selection, naive_bayes, neighbors, pipeline, preprocessing,
-                    svm, linear_model, tree, discriminant_analysis)
+"""
+Classes:
 
-log = logging.getLogger(__name__)
+    ModelToDict
+    DictToModel
+
+Functions:
+
+    dump(object) -> dictionary
+    load(dictionary) -> object
+
 
 RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_idx_', '_aslist_', '_keys_',
                 '_module_', '_name_', '_dtype_', '_values_', '_value_', '_datatype_']
+
+"""
+
+import sys
+import logging
+import types
+import numpy
+
+log = logging.getLogger(__name__)
+
+class JsonPicklerError(Exception):
+    pass
 
 class ModelToDict:
     """
@@ -72,7 +81,7 @@ class ModelToDict:
         if reduce:
             rv = reduce()
         else:
-            raise Exception("Can't reduce %r object: %r" %(t.__name__, obj))        
+            raise JsonPicklerError("Can't reduce %r object: %r" %(t.__name__, obj))
         assert (type(rv) is tuple),\
             "%s must return a tuple, but got %s" % (reduce, type(rv))
         l = len(rv)
@@ -151,10 +160,10 @@ class ModelToDict:
     def save_global(self, obj):
         name = getattr(obj, '__name__', None)
         if name is None:
-            raise Exception("Can't get global name for object %r" % obj)
+            raise JsonPicklerError("Can't get global name for object %r" % obj)
         module_name = getattr(obj, '__module__', None)
         if module_name is None:
-            raise Exception("Can't get global module name for object %r" % obj)
+            raise JsonPicklerError("Can't get global module name for object %r" % obj)
 
         newdict = {'_op_': 'global'}
         newdict['_module_'] = module_name
@@ -231,7 +240,7 @@ class DictToModel:
                 if f:
                     return f(self, data)
                 else:
-                    raise Exception("Dispatch table doesn't contain the _op_: %s" % _op_)
+                    raise JsonPicklerError("Dispatch table doesn't contain the _op_: %s" % _op_)
             else:
                 return dispatch[dict](self, data)
         f = dispatch.get(t)
@@ -247,7 +256,7 @@ class DictToModel:
             if obj is not None:
                 return obj
             else:
-                raise Exception("Object was referenced before being built and stored in memo: %s" % str(data))
+                raise JsonPicklerError("Object was referenced before being built and stored in memo: %s" % str(data))
 
     dispatch['memo'] = load_memo
 
@@ -374,20 +383,33 @@ def load(data):
 
 
 if __name__ == "__main__":
-    # Load a model from pickle
+    import json
+    import yaml
+    import pickle
+    import sklearn
+    import pprint
+    from sklearn import (cluster, decomposition, ensemble, feature_extraction, feature_selection,
+                    gaussian_process, kernel_approximation, kernel_ridge, linear_model,
+                    metrics, model_selection, naive_bayes, neighbors, pipeline, preprocessing,
+                    svm, linear_model, tree, discriminant_analysis)
+
+    print("Loading pickled test model...")
     with open('./test-data/grad_Boos_classifier.pickle', 'rb') as f:
         model = pickle.load(f)
 
-    # Convert a model object to dictionary
+    print("\n\nDumping object to dict...")
     model_dict = dump(model)
+    pprint.pprint(model_dict)
 
-    # Dump model dict to JSON file
+    print("\n\nDumping dict data to JSON file...")
     with open('./test-data/jbc_model.json', 'w') as f:
         json.dump(model_dict, f)
 
+    print("\n\nLoading data from JSON file...")
     # Use yaml.load instead of json.load to avoid unicode in python 2
     with open('./test-data/jbc_model.json', 'r') as f:
         new_dict = yaml.load(f)
 
-    # Re-build the model from dict
+    print("\n\nRe-build the model object...")
     re_model = load(new_dict)
+    print("%r" %re_model)
