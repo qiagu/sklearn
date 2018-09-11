@@ -61,7 +61,9 @@ class ModelToDict:
         return self.save_reduce(obj)
 
     def save_reduce(self, obj):
-
+        """
+        decompose an object using pickle reduce
+        """
         reduce = getattr(obj, "__reduce__", None)
         if reduce:
             rv = reduce()
@@ -330,6 +332,7 @@ class DictToModel:
             if setstate:
                 setstate(state)
             else:
+                assert (type(state) is dict)
                 for k, v in state.items():
                     setattr(obj, k, v)
 
