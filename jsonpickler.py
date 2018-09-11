@@ -393,21 +393,32 @@ if __name__ == "__main__":
                     metrics, model_selection, naive_bayes, neighbors, pipeline, preprocessing,
                     svm, linear_model, tree, discriminant_analysis)
 
+    if len(sys.argv) > 1:
+        test_model = sys.argv[1]
+    else:
+        test_model =  './test-data/grad_Boos_classifier.pickle'
+
     print("Loading pickled test model...")
-    with open('./test-data/grad_Boos_classifier.pickle', 'rb') as f:
+    with open(test_model, 'rb') as f:
         model = pickle.load(f)
+
+    pickle0_file = test_model + '.pickle0'
+    print("Dumping model by pickle protocol-0...")
+    with open(pickle0_file, 'wb') as f:
+        pickle.dump(model, f)
 
     print("\n\nDumping object to dict...")
     model_dict = dump(model)
     pprint.pprint(model_dict)
 
+    json_file = test_model +'.json'
     print("\n\nDumping dict data to JSON file...")
-    with open('./test-data/jbc_model.json', 'w') as f:
+    with open(json_file, 'w') as f:
         json.dump(model_dict, f)
 
     print("\n\nLoading data from JSON file...")
     # Use yaml.load instead of json.load to avoid unicode in python 2
-    with open('./test-data/jbc_model.json', 'r') as f:
+    with open(json_file, 'r') as f:
         new_dict = yaml.load(f)
 
     print("\n\nRe-build the model object...")
