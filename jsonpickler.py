@@ -256,6 +256,7 @@ class DictToModel:
     dispatch[float] = load_primitive
     dispatch[complex] = load_primitive
     dispatch[str] = load_primitive
+    dispatch[unicode] = load_primitive
 
     def load_list(self, data):
         newlist = []
