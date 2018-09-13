@@ -16,11 +16,9 @@ RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_idx_', '_aslist_', '_k
 """
 
 import sys
-import logging
 import types
 import numpy
 
-log = logging.getLogger(__name__)
 
 class JsonPicklerError(Exception):
     pass
@@ -45,8 +43,7 @@ class ModelToDict:
         """
         assert id(obj) not in self.memo
         idx = len(self.memo)
-        self.memo[id(obj)] = (idx, obj)
-        log.debug("Object saved: %d %s" % (idx, str(obj)))
+        self.memo[id(obj)] = idx, obj
 
     def save(self, obj):
 
@@ -122,11 +119,7 @@ class ModelToDict:
     #dispatch[bytearray] = save_primitive
 
     def save_list(self, obj):
-        newlist = []
-        for e in obj:
-            newlist.append(self.save(e))
-        #self.memoize(obj)
-        return newlist
+        return [self.save(e) for e in obj]
 
     dispatch[list] = save_list
 
@@ -178,7 +171,7 @@ class ModelToDict:
         newdict = {'_op_': 'np_ndarray'}
         newdict['_dtype_'] = self.save(obj.dtype)
         newdict['_values_'] = self.save(obj.tolist())
-        self.memoize(obj)
+        #self.memoize(obj)
         return newdict
 
     dispatch[numpy.ndarray] = save_np_ndarray
@@ -187,7 +180,7 @@ class ModelToDict:
         newdict = {'_op_': 'np_datatype'}
         newdict['_datatype_'] = self.save( type(obj) )
         newdict['_value_'] = self.save(obj.item())
-        self.memoize(obj)
+        #self.memoize(obj)
         return newdict
 
     dispatch[numpy.bool_] = save_np_datatype
@@ -224,7 +217,6 @@ class DictToModel:
     def memoize(self, obj):
         l = len(self.memo)
         self.memo[l] = obj
-        log.debug("Object rebuilt: %d %s" % (l, str(obj)))
 
     def load(self, data):
         """
@@ -273,11 +265,7 @@ class DictToModel:
     dispatch[unicode] = load_primitive
 
     def load_list(self, data):
-        newlist = []
-        for e in data:
-            newlist.append( self.load(e) )
-        #self.memoize(newlist)
-        return newlist
+        return [self.load(e) for e in data]
 
     dispatch[list] = load_list
 
@@ -360,7 +348,7 @@ class DictToModel:
         _dtype_ = self.load( data.get('_dtype_') )
         _values_ = self.load( data.get('_values_') )
         obj = numpy.array(_values_, dtype=_dtype_)
-        self.memoize(obj)
+        #self.memoize(obj)
         return obj
 
     dispatch['np_ndarray'] = load_np_ndarray
@@ -369,7 +357,7 @@ class DictToModel:
         _datatype_ = self.load( data['_datatype_'] )
         _value_ = self.load( data['_value_'] )
         obj = _datatype_(_value_)
-        self.memoize(obj)
+        #self.memoize(obj)
         return obj
 
     dispatch['np_datatype'] = load_np_datatype
@@ -383,9 +371,9 @@ def load(data):
 
 
 if __name__ == "__main__":
-    import json
-    import yaml
+    import ujson
     import pickle
+    import time
     import sklearn
     import pprint
     from sklearn import (cluster, decomposition, ensemble, feature_extraction, feature_selection,
@@ -399,28 +387,47 @@ if __name__ == "__main__":
         test_model =  './test-data/grad_Boos_classifier.pickle'
 
     print("Loading pickled test model...")
+    start_time = time.time()
     with open(test_model, 'rb') as f:
         model = pickle.load(f)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
 
     pickle0_file = test_model + '.pickle0'
-    print("Dumping model by pickle protocol-0...")
+    print("\nDumping model by pickle protocol-0...")
+    start_time = time.time()
     with open(pickle0_file, 'wb') as f:
         pickle.dump(model, f)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
 
-    print("\n\nDumping object to dict...")
+    print("\nDumping object to dict...")
+    start_time = time.time()
     model_dict = dump(model)
-    pprint.pprint(model_dict)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
+    #pprint.pprint(model_dict)
 
     json_file = test_model +'.json'
-    print("\n\nDumping dict data to JSON file...")
+    print("\nDumping dict data to JSON file...")
+    start_time = time.time()
     with open(json_file, 'w') as f:
-        json.dump(model_dict, f)
+        ujson.dump(model_dict, f)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
 
-    print("\n\nLoading data from JSON file...")
+    print("\nLoading data from JSON file...")
     # Use yaml.load instead of json.load to avoid unicode in python 2
-    with open(json_file, 'r') as f:
-        new_dict = yaml.load(f)
 
-    print("\n\nRe-build the model object...")
-    re_model = load(new_dict)
+    start_time = time.time()
+    with open(json_file, 'r') as f:
+        new_dict = ujson.load(f)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
+
+    print("\nRe-build the model object...")
+    start_time = time.time()
+    re_model = load(model_dict)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
     print("%r" %re_model)
