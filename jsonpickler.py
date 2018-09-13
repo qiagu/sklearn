@@ -50,8 +50,7 @@ class ModelToDict:
         # Check the `memo``
         x = self.memo.get(id(obj))
         if x:
-            rval = {'_op_': 'memo'}
-            rval['_idx_'] = x[0]
+            rval = {'_memo_': x[0]}
             return rval
 
         # Check type in `dispath` table
@@ -114,8 +113,13 @@ class ModelToDict:
     dispatch[long] = save_primitive
     dispatch[float] = save_primitive
     dispatch[complex] = save_primitive
-    dispatch[str] = save_primitive
-    dispatch[unicode] = save_primitive
+
+    def save_string(self, obj):
+        self.memoize(obj)
+        return obj
+
+    dispatch[str] = save_string
+    dispatch[unicode] = save_string
     #dispatch[bytearray] = save_primitive
 
     def save_list(self, obj):
@@ -226,6 +230,9 @@ class DictToModel:
 
         t = type(data)
         if t is dict:
+            _idx_ = data.get('_memo_')
+            if _idx_ is not None:
+                return self.memo[_idx_]
             _op_ = data.get('_op_')
             if _op_:
                 f = dispatch.get(_op_)
@@ -241,17 +248,6 @@ class DictToModel:
 
     dispatch = {}
 
-    def load_memo(self, data):
-        _idx_ = data.get('_idx_')
-        if _idx_ is not None:
-            obj = self.memo.get(_idx_)
-            if obj is not None:
-                return obj
-            else:
-                raise JsonPicklerError("Object was referenced before being built and stored in memo: %s" % str(data))
-
-    dispatch['memo'] = load_memo
-
     def load_primitive(self, data):
         return data
 
@@ -261,8 +257,12 @@ class DictToModel:
     dispatch[long] = load_primitive
     dispatch[float] = load_primitive
     dispatch[complex] = load_primitive
-    dispatch[str] = load_primitive
-    dispatch[unicode] = load_primitive
+
+    def load_string(self, data):
+        self.memoize(data)
+        return data
+    dispatch[str] = load_string
+    dispatch[unicode] = load_string
 
     def load_list(self, data):
         return [self.load(e) for e in data]
@@ -394,10 +394,17 @@ if __name__ == "__main__":
     print("(%s s)" % str(end_time - start_time) )
 
     pickle0_file = test_model + '.pickle0'
-    print("\nDumping model by pickle protocol-0...")
+    print("\nDumping model using pickle protocol-0...")
     start_time = time.time()
     with open(pickle0_file, 'wb') as f:
         pickle.dump(model, f)
+    end_time = time.time()
+    print("(%s s)" % str(end_time - start_time) )
+
+    print("\nLoading model using pickle protocol-0...")
+    start_time = time.time()
+    with open(pickle0_file, 'rb') as f:
+        pickle_model = pickle.load(f)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
 
@@ -408,7 +415,7 @@ if __name__ == "__main__":
     print("(%s s)" % str(end_time - start_time) )
     #pprint.pprint(model_dict)
 
-    json_file = test_model +'.json'
+    """ json_file = test_model +'.json'
     print("\nDumping dict data to JSON file...")
     start_time = time.time()
     with open(json_file, 'w') as f:
@@ -423,7 +430,7 @@ if __name__ == "__main__":
     with open(json_file, 'r') as f:
         new_dict = ujson.load(f)
     end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
+    print("(%s s)" % str(end_time - start_time) )"""
 
     print("\nRe-build the model object...")
     start_time = time.time()
