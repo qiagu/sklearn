@@ -93,7 +93,8 @@ class ModelToDict:
         retv['_func_'] = save(func)
 
         args = rv[1]
-        retv['_args_'] = save(args)
+        assert (type(args) is tuple)
+        retv['_args_'] = save(list(args))
 
         if l == 3:
             state = rv[2]
@@ -322,9 +323,8 @@ class DictToModel:
         func = self.load( _func_)
         assert callable(func)
 
-        _args_ = data.get('_args_')
-        args = self.load( _args_)
-        assert (type(args) is tuple), "args for rebuild an object must be tuple: %r" % args
+        _args_ = data['_args_']
+        args = tuple( self.load( _args_) )
 
         obj = func(*args)
 
