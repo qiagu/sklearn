@@ -6,8 +6,8 @@ Classes:
 
 Functions:
 
-    dump(object) -> dictionary
-    load(dictionary) -> object
+    dumpc(object) -> dictionary
+    loadc(dictionary) -> object
 
 
 RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_aslist_', '_keys_', '_memo_',
@@ -264,7 +264,17 @@ class DictToModel:
         return data
 
     dispatch[str] = load_string
-    dispatch[unicode] = load_string
+
+    def load_unicode(self, data):
+        """
+        `json.load` loads string as unicode in python 2,
+        while some classes don't support unicode, like numpy.dtype
+        """
+        data = str(data)
+        self.memoize(data)
+        return data
+
+    dispatch[unicode] = load_unicode
 
     def load_list(self, data):
         return [self.load(e) for e in data]
@@ -367,10 +377,10 @@ class DictToModel:
     dispatch['np_datatype'] = load_np_datatype
 
 
-def dump(obj):
+def dumpc(obj):
     return  ModelToDict().save(obj)
 
-def load(data):
+def loadc(data):
     return DictToModel().load(data)
 
 
@@ -414,7 +424,7 @@ if __name__ == "__main__":
 
     print("\nDumping object to dict...")
     start_time = time.time()
-    model_dict = dump(model)
+    model_dict = dumpc(model)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
 
@@ -437,7 +447,7 @@ if __name__ == "__main__":
 
     print("\nRe-build the model object...")
     start_time = time.time()
-    re_model = load(new_dict)
+    re_model = loadc(new_dict)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
     print("%r" %re_model)
