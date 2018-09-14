@@ -10,7 +10,7 @@ Functions:
     load(dictionary) -> object
 
 
-RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_idx_', '_aslist_', '_keys_',
+RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_aslist_', '_keys_', '_memo_',
                 '_module_', '_name_', '_dtype_', '_values_', '_value_', '_datatype_']
 
 """
@@ -262,6 +262,7 @@ class DictToModel:
     def load_string(self, data):
         self.memoize(data)
         return data
+
     dispatch[str] = load_string
     dispatch[unicode] = load_string
 
@@ -326,7 +327,10 @@ class DictToModel:
         _args_ = data['_args_']
         args = tuple( self.load( _args_) )
 
-        obj = func(*args)
+        try:
+            obj = args[0].__new__(args[0], * args)
+        except:
+            obj = func(*args)
 
         _state_ = data.get('_state_')
         if _state_:
@@ -371,7 +375,7 @@ def load(data):
 
 
 if __name__ == "__main__":
-    import ujson
+    import ujson as json
     import pickle
     import time
     import sklearn
@@ -413,28 +417,27 @@ if __name__ == "__main__":
     model_dict = dump(model)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
+
     #pprint.pprint(model_dict)
 
-    """ json_file = test_model +'.json'
+    json_file = test_model +'.json'
     print("\nDumping dict data to JSON file...")
     start_time = time.time()
     with open(json_file, 'w') as f:
-        ujson.dump(model_dict, f)
+        json.dump(model_dict, f)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
 
     print("\nLoading data from JSON file...")
-    # Use yaml.load instead of json.load to avoid unicode in python 2
-
     start_time = time.time()
     with open(json_file, 'r') as f:
-        new_dict = ujson.load(f)
+        new_dict = json.load(f)
     end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )"""
+    print("(%s s)" % str(end_time - start_time) )
 
     print("\nRe-build the model object...")
     start_time = time.time()
-    re_model = load(model_dict)
+    re_model = load(new_dict)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
     print("%r" %re_model)
