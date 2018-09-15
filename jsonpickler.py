@@ -9,15 +9,28 @@ Functions:
     dumpc(object) -> dictionary
     loadc(dictionary) -> object
 
-
-RESERVED_KEYS = ['_op_', '_func_', '_args_', '_state_', '_aslist_', '_keys_', '_memo_',
-                '_module_', '_name_', '_dtype_', '_values_', '_value_', '_datatype_']
-
 """
 
 import sys
 import types
 import numpy
+
+# reserved keys
+_REDUCE = '-reduce-'
+_GLOBAL = '-global-'
+_FUNC = '--func-'
+_ARGS = '-args-'
+_STATE = '-state-'
+_KEYS = '-keys-'
+_MEMO = '-memo-'
+_NP_NDARRAY = '-np_ndarray-'
+_DTYPE = '-dtype-'
+_VALUES = '-values-'
+_NP_DATATYPE = '-np_datatype-'
+_DATATYPE = '-datatype-'
+_VALUE = '-value-'
+_TUPLE = '-tuple-'
+_SET = '-set-'
 
 
 class JsonPicklerError(Exception):
@@ -50,7 +63,7 @@ class ModelToDict:
         # Check the `memo``
         x = self.memo.get(id(obj))
         if x:
-            rval = {'_memo_': x[0]}
+            rval = {_MEMO: x[0]}
             return rval
 
         # Check type in `dispath` table
@@ -86,22 +99,22 @@ class ModelToDict:
 
         save = self.save
 
-        retv = {'_op_': 'reduce'}
+        retv = {}
 
         func = rv[0]
         assert callable(func), "func from reduce is not callable"
-        retv['_func_'] = save(func)
+        retv[_FUNC] = save(func)
 
         args = rv[1]
         assert (type(args) is tuple)
-        retv['_args_'] = save(list(args))
+        retv[_ARGS] = {_TUPLE: save(list(args)) }
 
         if l == 3:
             state = rv[2]
-            retv['_state_'] = save(state)
+            retv[_STATE] = save(state)
 
         self.memoize(obj)
-        return retv
+        return {_REDUCE: retv}
     
     dispatch = {}
 
@@ -129,26 +142,23 @@ class ModelToDict:
     dispatch[list] = save_list
 
     def save_tuple(self, obj):
-        newdict = {'_op_': 'tuple'}
-        newdict['_aslist_'] = self.save(list(obj))
-        #self.memoize(obj)
-        return newdict
+        aslist = self.save(list(obj))
+        return {_TUPLE: aslist}
 
     dispatch[tuple] = save_tuple
 
     def save_set(self, obj):
-        newdict = {'_op_': 'set'}
-        newdict['_aslist_'] = self.save(list(obj))
-        #self.memoize(obj)
-        return newdict
+        aslist = self.save(list(obj))
+        return {_SET: aslist}
 
     dispatch[set] = save_set
 
     def save_dict(self, obj):
         newdict = {}
-        _keys_ = obj.keys()
-        newdict['_keys_'] = _keys_
-        for k in _keys_:
+        _keys = obj.keys()
+        _keys.sort()
+        newdict[_KEYS] = _keys
+        for k in _keys:
             newdict[k] = self.save(obj[k])
         #self.memoize(obj)
         return newdict
@@ -163,9 +173,7 @@ class ModelToDict:
         if module_name is None:
             raise JsonPicklerError("Can't get global module name for object %r" % obj)
 
-        newdict = {'_op_': 'global'}
-        newdict['_module_'] = module_name
-        newdict['_name_'] = name
+        newdict = {_GLOBAL: [module_name, name]}
         self.memoize(obj)
         return newdict
 
@@ -173,20 +181,20 @@ class ModelToDict:
     dispatch[types.BuiltinFunctionType] = save_global
 
     def save_np_ndarray(self, obj):
-        newdict = {'_op_': 'np_ndarray'}
-        newdict['_dtype_'] = self.save(obj.dtype)
-        newdict['_values_'] = self.save(obj.tolist())
+        newdict = {}
+        newdict[_DTYPE] = self.save(obj.dtype)
+        newdict[_VALUES] = self.save(obj.tolist())
         #self.memoize(obj)
-        return newdict
+        return {_NP_NDARRAY: newdict}
 
     dispatch[numpy.ndarray] = save_np_ndarray
 
     def save_np_datatype(self, obj):
-        newdict = {'_op_': 'np_datatype'}
-        newdict['_datatype_'] = self.save( type(obj) )
-        newdict['_value_'] = self.save(obj.item())
+        newdict = {}
+        newdict[_DATATYPE] = self.save( type(obj) )
+        newdict[_VALUE] = self.save(obj.item())
         #self.memoize(obj)
-        return newdict
+        return {_NP_DATATYPE: newdict}
 
     dispatch[numpy.bool_] = save_np_datatype
     dispatch[numpy.int_] = save_np_datatype
@@ -231,21 +239,26 @@ class DictToModel:
 
         t = type(data)
         if t is dict:
-            _idx_ = data.get('_memo_')
-            if _idx_ is not None:
-                return self.memo[_idx_]
-            _op_ = data.get('_op_')
-            if _op_:
-                f = dispatch.get(_op_)
-                if f:
-                    return f(self, data)
-                else:
-                    raise JsonPicklerError("Dispatch table doesn't contain the _op_: %s" % _op_)
-            else:
-                return dispatch[dict](self, data)
+            if _MEMO in data:
+                return self.memo[data[_MEMO]]
+            if _REDUCE in data:
+                return self.load_reduce(data[_REDUCE])
+            if _GLOBAL in data:
+                return self.load_global(data[_GLOBAL])
+            if _TUPLE in data:
+                return self.load_tuple(data[_TUPLE])
+            if _SET in data:
+                return self.load_set(data[_SET])
+            if _NP_NDARRAY in data:
+                return self.load_np_ndarray(data[_NP_NDARRAY])
+            if _NP_DATATYPE in data:
+                return self.load_np_datatype(data[_NP_DATATYPE])
+            return self.load_dict(data)
         f = dispatch.get(t)
         if f:
             return f(self, data)
+        else:
+            raise JsonPicklerError("Unsupported data found: %s" %str(data))
 
     dispatch = {}
 
@@ -282,25 +295,19 @@ class DictToModel:
     dispatch[list] = load_list
 
     def load_tuple(self, data):
-        _aslist_ = self.load( data['_aslist_'] )
-        obj = tuple(_aslist_)
+        obj = self.load( data )
         #self.memoize(obj)
-        return obj
-
-    dispatch['tuple'] = load_tuple
+        return tuple(obj)
 
     def load_set(self, data):
-        _aslist_ = self.load( data['_aslist_'] )
-        obj = set(_aslist_)
+        obj = self.load( data )
         #self.memoize(obj)
-        return obj
-
-    dispatch['set'] = load_set
+        return set(obj)
 
     def load_dict(self, data):
         newdict = {}
-        _keys_ = data['_keys_']
-        for k in _keys_:
+        _keys = data[_KEYS]
+        for k in _keys:
             try:
                 v = data[k]
             # JSON dumps non-string key to string
@@ -310,41 +317,37 @@ class DictToModel:
         #self.memoize( newdict )
         return newdict
 
-    dispatch[dict] = load_dict
-
     def find_class(self, module, name):
         __import__(module, level=0)
         mod = sys.modules[module]
         return getattr(mod, name)
 
     def load_global(self, data):
-        module = data['_module_']
-        name = data['_name_']
+        module = data[0]
+        name = data[1]
         func = self.find_class(module, name)
         self.memoize(func)
         return func
-
-    dispatch['global'] = load_global
 
     def load_reduce(self, data):
         """
         Build object
         """
-        _func_ = data.get('_func_')
-        func = self.load( _func_)
-        assert callable(func)
+        _func = data[_FUNC]
+        func = self.load( _func)
+        assert callable(func), "%r" % func
 
-        _args_ = data['_args_']
-        args = tuple( self.load( _args_) )
+        _args = data[_ARGS][_TUPLE]
+        args = tuple( self.load( _args) )
 
         try:
             obj = args[0].__new__(args[0], * args)
         except:
             obj = func(*args)
 
-        _state_ = data.get('_state_')
-        if _state_:
-            state = self.load( _state_)
+        _state = data.get(_STATE)
+        if _state:
+            state = self.load( _state)
             setstate = getattr(obj, "__setstate__", None)
             if setstate:
                 setstate(state)
@@ -356,25 +359,19 @@ class DictToModel:
         self.memoize(obj)
         return obj
 
-    dispatch['reduce'] = load_reduce
-
     def load_np_ndarray(self, data):
-        _dtype_ = self.load( data.get('_dtype_') )
-        _values_ = self.load( data.get('_values_') )
-        obj = numpy.array(_values_, dtype=_dtype_)
+        _dtype = self.load( data[_DTYPE] )
+        _values = self.load( data[_VALUES] )
+        obj = numpy.array(_values, dtype=_dtype)
         #self.memoize(obj)
         return obj
-
-    dispatch['np_ndarray'] = load_np_ndarray
 
     def load_np_datatype(self, data):
-        _datatype_ = self.load( data['_datatype_'] )
-        _value_ = self.load( data['_value_'] )
-        obj = _datatype_(_value_)
+        _datatype = self.load( data[_DATATYPE] )
+        _value = self.load( data[_VALUE] )
+        obj = _datatype(_value)
         #self.memoize(obj)
         return obj
-
-    dispatch['np_datatype'] = load_np_datatype
 
 
 def dumpc(obj):
@@ -434,7 +431,7 @@ if __name__ == "__main__":
     print("\nDumping dict data to JSON file...")
     start_time = time.time()
     with open(json_file, 'w') as f:
-        json.dump(model_dict, f)
+        json.dump(model_dict, f, sort_keys=True, indent=2)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
 
