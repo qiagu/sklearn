@@ -17,6 +17,9 @@ import types
 import numpy
 
 # reserved keys
+_PY_VERSION = '-cpython-'
+_OBJ = '-object-'
+_NP_VERSION = '-numpy-'
 _REDUCE = '-reduce-'
 _GLOBAL = '-global-'
 _FUNC = '--func-'
@@ -59,6 +62,18 @@ class ModelToDict:
         assert id(obj) not in self.memo
         idx = len(self.memo)
         self.memo[id(obj)] = idx, obj
+
+    def dump(self, obj):
+        """
+        Main access of object save
+        """
+        py_version = sys.version.split(' ')[0]
+        retv = {_PY_VERSION: py_version}
+        np_version = sys.modules.get('numpy').__version__
+        if np_version:
+            retv[_NP_VERSION] = np_version
+        retv[_OBJ] = self.save(obj)
+        return retv
 
     def save(self, obj):
 
@@ -243,6 +258,9 @@ class DictToModel:
         self.memo[l] = obj
 
     def load(self, data):
+        return self.load_all(data[_OBJ])
+
+    def load_all(self, data):
         """
         The main method to generate an object from dict data
         """
@@ -253,7 +271,7 @@ class DictToModel:
             if _MEMO in data:
                 return self.memo[data[_MEMO]]
             if _BYTES in data:
-                return self.load_bytes[data[_BYTES]]
+                return self.load_bytes(data[_BYTES])
             if _REDUCE in data:
                 return self.load_reduce(data[_REDUCE])
             if _GLOBAL in data:
@@ -310,17 +328,17 @@ class DictToModel:
         return data
 
     def load_list(self, data):
-        return [self.load(e) for e in data]
+        return [self.load_all(e) for e in data]
 
     dispatch[list] = load_list
 
     def load_tuple(self, data):
-        obj = self.load( data )
+        obj = self.load_all( data )
         #self.memoize(obj)
         return tuple(obj)
 
     def load_set(self, data):
-        obj = self.load( data )
+        obj = self.load_all( data )
         #self.memoize(obj)
         return set(obj)
 
@@ -333,7 +351,7 @@ class DictToModel:
             # JSON dumps non-string key to string
             except KeyError:
                 v = data[str(k)]
-            newdict[k] = self.load(v)
+            newdict[k] = self.load_all(v)
         #self.memoize( newdict )
         return newdict
 
@@ -354,11 +372,11 @@ class DictToModel:
         Build object
         """
         _func = data[_FUNC]
-        func = self.load( _func)
+        func = self.load_all( _func)
         assert callable(func), "%r" % func
 
         _args = data[_ARGS][_TUPLE]
-        args = tuple( self.load( _args) )
+        args = tuple( self.load_all( _args) )
 
         try:
             obj = args[0].__new__(args[0], * args)
@@ -367,7 +385,7 @@ class DictToModel:
 
         _state = data.get(_STATE)
         if _state:
-            state = self.load( _state)
+            state = self.load_all( _state)
             setstate = getattr(obj, "__setstate__", None)
             if setstate:
                 setstate(state)
@@ -380,22 +398,22 @@ class DictToModel:
         return obj
 
     def load_np_ndarray(self, data):
-        _dtype = self.load( data[_DTYPE] )
-        _values = self.load( data[_VALUES] )
+        _dtype = self.load_all( data[_DTYPE] )
+        _values = self.load_all( data[_VALUES] )
         obj = numpy.array(_values, dtype=_dtype)
         #self.memoize(obj)
         return obj
 
     def load_np_datatype(self, data):
-        _datatype = self.load( data[_DATATYPE] )
-        _value = self.load( data[_VALUE] )
+        _datatype = self.load_all( data[_DATATYPE] )
+        _value = self.load_all( data[_VALUE] )
         obj = _datatype(_value)
         #self.memoize(obj)
         return obj
 
 
 def dumpc(obj):
-    return  ModelToDict().save(obj)
+    return  ModelToDict().dump(obj)
 
 def loadc(data):
     return DictToModel().load(data)
