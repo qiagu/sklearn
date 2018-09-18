@@ -13,6 +13,7 @@ Functions:
 
 import sys
 import six
+import warnings
 import types
 import numpy
 
@@ -35,7 +36,10 @@ _DATATYPE = '-datatype-'
 _VALUE = '-value-'
 _TUPLE = '-tuple-'
 _SET = '-set-'
-_BYTES ='-bytes-'
+_BYTES = '-bytes-'
+_UNICODE = '-unicode-'
+
+PY_VERSION = sys.version.split(' ')[0]
 
 
 class JsonPicklerError(Exception):
@@ -67,11 +71,10 @@ class ModelToDict:
         """
         Main access of object save
         """
-        py_version = sys.version.split(' ')[0]
-        retv = {_PY_VERSION: py_version}
-        np_version = sys.modules.get('numpy').__version__
-        if np_version:
-            retv[_NP_VERSION] = np_version
+        retv = {_PY_VERSION: PY_VERSION}
+        np_module = sys.modules.get('numpy')
+        if np_module:
+            retv[_NP_VERSION] = np_module.__version__
         retv[_OBJ] = self.save(obj)
         return retv
 
@@ -159,8 +162,12 @@ class ModelToDict:
 
     dispatch[str] = save_string
 
+    def save_unicode(self, obj):
+        self.memoize(obj)
+        return {_UNICODE: obj}
+
     if six.PY2:
-        dispatch[unicode] = save_string
+        dispatch[unicode] = save_unicode
     #dispatch[bytearray] = save_primitive
 
     def save_list(self, obj):
@@ -181,6 +188,8 @@ class ModelToDict:
     dispatch[set] = save_set
 
     def save_dict(self, obj):
+        if len(obj) == 0 :
+            return {}
         newdict = {}
         _keys = list(obj.keys())
         _keys.sort()
@@ -259,6 +268,11 @@ class DictToModel:
         self.memo[l] = obj
 
     def load(self, data):
+        if data[_PY_VERSION] != PY_VERSION:
+            warnings.warn("Trying to load an object from python %s "
+                "when using python %s. This might lead to breaking code or "
+                "invalid results. Use at your own risk."\
+                %(data[_PY_VERSION], PY_VERSION))
         return self.load_all(data[_OBJ])
 
     def load_all(self, data):
@@ -285,6 +299,8 @@ class DictToModel:
                 return self.load_np_ndarray(data[_NP_NDARRAY])
             if _NP_DATATYPE in data:
                 return self.load_np_datatype(data[_NP_DATATYPE])
+            if _UNICODE in data:
+                return self.load_unicode2(data[_UNICODE])
             return self.load_dict(data)
         f = dispatch.get(t)
         if f:
@@ -323,6 +339,10 @@ class DictToModel:
     if six.PY2:
         dispatch[unicode] = load_unicode
 
+    def load_unicode2(self, data):
+        self.memoize(data)
+        return data
+
     def load_bytes(self, data):
         data = data.encode('utf-8')
         self.memoize(data)
@@ -344,6 +364,8 @@ class DictToModel:
         return set(obj)
 
     def load_dict(self, data):
+        if len(data) == 0:
+            return {}
         newdict = {}
         _keys = data[_KEYS]
         for k in _keys:
@@ -357,6 +379,10 @@ class DictToModel:
         return newdict
 
     def find_class(self, module, name):
+        if module == 'copy_reg' and not six.PY2:
+            module = 'copyreg'
+        elif module == '__builtin__' and not six.PY2:
+            module = 'builtins'
         __import__(module, level=0)
         mod = sys.modules[module]
         return getattr(mod, name)
@@ -421,7 +447,7 @@ def loadc(data):
 
 
 if __name__ == "__main__":
-    import ujson as json
+    import json
     import pickle
     import time
     import sklearn
