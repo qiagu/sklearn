@@ -146,6 +146,13 @@ class ModelToDict:
     dispatch[float] = save_primitive
     dispatch[complex] = save_primitive
 
+    def save_bytes(self, obj):
+        print("save_bytes: %s" %type(obj))
+        self.memoize(obj)
+        return {_BYTES: obj.decode('utf-8')}
+
+    dispatch[bytes] = save_bytes
+
     def save_string(self, obj):
         self.memoize(obj)
         return obj
@@ -154,12 +161,6 @@ class ModelToDict:
 
     if six.PY2:
         dispatch[unicode] = save_string
-
-    def save_bytes(self, obj):
-        self.memoize(obj)
-        return {_BYTES: obj.decode('utf-8')}
-
-    dispatch[bytes] = save_bytes
     #dispatch[bytearray] = save_primitive
 
     def save_list(self, obj):
