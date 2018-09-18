@@ -12,6 +12,7 @@ Functions:
 """
 
 import sys
+import six
 import types
 import numpy
 
@@ -31,6 +32,7 @@ _DATATYPE = '-datatype-'
 _VALUE = '-value-'
 _TUPLE = '-tuple-'
 _SET = '-set-'
+_BYTES ='-bytes-'
 
 
 class JsonPicklerError(Exception):
@@ -124,7 +126,8 @@ class ModelToDict:
     dispatch[type(None)] = save_primitive
     dispatch[bool] = save_primitive
     dispatch[int] = save_primitive
-    dispatch[long] = save_primitive
+    if six.PY2:
+        dispatch[long] = save_primitive
     dispatch[float] = save_primitive
     dispatch[complex] = save_primitive
 
@@ -133,7 +136,15 @@ class ModelToDict:
         return obj
 
     dispatch[str] = save_string
-    dispatch[unicode] = save_string
+
+    if six.PY2:
+        dispatch[unicode] = save_string
+
+    def save_bytes(self, obj):
+        self.memoize(obj)
+        return {_BYTES: obj.decode('utf-8')}
+
+    dispatch[bytes] = save_bytes
     #dispatch[bytearray] = save_primitive
 
     def save_list(self, obj):
@@ -155,7 +166,7 @@ class ModelToDict:
 
     def save_dict(self, obj):
         newdict = {}
-        _keys = obj.keys()
+        _keys = list(obj.keys())
         _keys.sort()
         newdict[_KEYS] = _keys
         for k in _keys:
@@ -241,6 +252,8 @@ class DictToModel:
         if t is dict:
             if _MEMO in data:
                 return self.memo[data[_MEMO]]
+            if _BYTES in data:
+                return self.load_bytes[data[_BYTES]]
             if _REDUCE in data:
                 return self.load_reduce(data[_REDUCE])
             if _GLOBAL in data:
@@ -268,7 +281,8 @@ class DictToModel:
     dispatch[type(None)] = load_primitive
     dispatch[bool] = load_primitive
     dispatch[int] = load_primitive
-    dispatch[long] = load_primitive
+    if six.PY2:
+        dispatch[long] = load_primitive
     dispatch[float] = load_primitive
     dispatch[complex] = load_primitive
 
@@ -287,7 +301,13 @@ class DictToModel:
         self.memoize(data)
         return data
 
-    dispatch[unicode] = load_unicode
+    if six.PY2:
+        dispatch[unicode] = load_unicode
+
+    def load_bytes(self, data):
+        data = data.encode('utf-8')
+        self.memoize(data)
+        return data
 
     def load_list(self, data):
         return [self.load(e) for e in data]
@@ -431,7 +451,7 @@ if __name__ == "__main__":
     print("\nDumping dict data to JSON file...")
     start_time = time.time()
     with open(json_file, 'w') as f:
-        json.dump(model_dict, f, sort_keys=True, indent=2)
+        json.dump(model_dict, f, sort_keys=True)
     end_time = time.time()
     print("(%s s)" % str(end_time - start_time) )
 
