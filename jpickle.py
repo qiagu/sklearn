@@ -41,8 +41,7 @@ _UNICODE = '-unicode-'
 
 PY_VERSION = sys.version.split(' ')[0]
 
-
-class JsonPicklerError(Exception):
+class JPicklerError(Exception):
     pass
 
 class ModelToDict:
@@ -110,7 +109,7 @@ class ModelToDict:
         if reduce:
             rv = reduce()
         else:
-            raise JsonPicklerError("Can't reduce %r object: %r" %(t.__name__, obj))
+            raise JPicklerError("Can't reduce %r object: %r" %(t.__name__, obj))
         assert (type(rv) is tuple),\
             "%s must return a tuple, but got %s" % (reduce, type(rv))
         l = len(rv)
@@ -204,10 +203,10 @@ class ModelToDict:
     def save_global(self, obj):
         name = getattr(obj, '__name__', None)
         if name is None:
-            raise JsonPicklerError("Can't get global name for object %r" % obj)
+            raise JPicklerError("Can't get global name for object %r" % obj)
         module_name = getattr(obj, '__module__', None)
         if module_name is None:
-            raise JsonPicklerError("Can't get global module name for object %r" % obj)
+            raise JPicklerError("Can't get global module name for object %r" % obj)
 
         newdict = {_GLOBAL: [module_name, name]}
         self.memoize(obj)
@@ -259,8 +258,7 @@ class DictToModel:
     """
 
     def __init__(self):
-        """ Store newly-built object
-        """
+        # Store newly-built object
         self.memo = {}
 
     def memoize(self, obj):
@@ -306,7 +304,7 @@ class DictToModel:
         if f:
             return f(self, data)
         else:
-            raise JsonPicklerError("Unsupported data found: %s" %str(data))
+            raise JPicklerError("Unsupported data found: %s" %str(data))
 
     dispatch = {}
 
