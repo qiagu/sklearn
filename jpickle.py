@@ -217,8 +217,15 @@ class ModelToDict:
 
     def save_np_ndarray(self, obj):
         newdict = {}
-        newdict[_DTYPE] = self.save(obj.dtype)
-        newdict[_VALUES] = self.save(obj.tolist())
+        _dtype = obj.dtype
+        newdict[_DTYPE] = self.save(_dtype)
+        aslist = obj.tolist()
+        if _dtype is numpy.dtype('O'):
+            newdict[_VALUES] = self.save(aslist)
+        elif _dtype.fields:
+            newdict[_VALUES] = [list(x) for x in aslist]
+        else:
+            newdict[_VALUES] = aslist
         #self.memoize(obj)
         return {_NP_NDARRAY: newdict}
 
@@ -424,7 +431,11 @@ class DictToModel:
 
     def load_np_ndarray(self, data):
         _dtype = self.load_all( data[_DTYPE] )
-        _values = self.load_all( data[_VALUES] )
+        _values = data[_VALUES]
+        if _dtype.fields:
+            _values = [tuple(x) for x in _values]
+        elif _dtype is numpy.dtype('O'):
+            _values = self.load_all(_values)
         obj = numpy.array(_values, dtype=_dtype)
         #self.memoize(obj)
         return obj
